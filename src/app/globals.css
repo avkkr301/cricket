@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #032d24;
+  --foreground: #f5f7f4;
+  --panel: #064238;
+  --panel-strong: #042f28;
+  --gold: #f3b51b;
+  --muted: #93aaa2;
 }
 
 @theme inline {
@@ -23,4 +27,47 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(circle at 10% -10%, rgba(243, 181, 27, 0.12), transparent 35%),
+    linear-gradient(135deg, #032d24 0%, #021e1a 100%);
+}
+
+button, input {
+  font: inherit;
+}
+
+.exchange-panel {
+  background: linear-gradient(145deg, rgba(7, 67, 56, 0.98), rgba(3, 43, 36, 0.98));
+  border: 1px solid rgba(148, 185, 173, 0.18);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+}
+
+.gold-button {
+  background: linear-gradient(180deg, #f7c633, #e4a20d);
+  color: #17342a;
+  box-shadow: 0 7px 20px rgba(243, 181, 27, 0.2);
+}
+
+.gold-button:hover {
+  background: linear-gradient(180deg, #ffd653, #efb51b);
+}
+
+.market-table th {
+  color: #a9beb6;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.market-table td,
+.market-table th {
+  border-bottom: 1px solid rgba(148, 185, 173, 0.12);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
 }
