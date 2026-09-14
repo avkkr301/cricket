@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { adminDb, getAdminAuth } from '@/lib/firebase/admin';
 
 export async function DELETE(req: Request) {
   try {
@@ -38,7 +38,7 @@ export async function DELETE(req: Request) {
     }
 
     // Delete from Firebase Auth
-    await adminAuth.deleteUser(targetUserId);
+    await (await getAdminAuth()).deleteUser(targetUserId);
 
     // Update Firestore to mark as deleted instead of hard delete to preserve financial history
     await adminDb.collection('users').doc(targetUserId).update({

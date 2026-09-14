@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { adminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { isValidMoney, roundMoney } from '@/lib/bets/math';
 
 export async function POST(req: Request) {
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
       let userRecord;
       try {
-        userRecord = await adminAuth.createUser({
+        userRecord = await (await getAdminAuth()).createUser({
           email: spoofedEmail,
           password: paddedPassword,
           displayName: username,

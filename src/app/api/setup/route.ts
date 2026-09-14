@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { adminDb, getAdminAuth } from '@/lib/firebase/admin';
 
 // WARNING: In a real production app, you should delete this file after running it once,
 // or protect it heavily with a secret key so people can't keep creating admins.
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Create the user in Firebase Authentication
-    const userRecord = await adminAuth.createUser({
+    const userRecord = await (await getAdminAuth()).createUser({
       email,
       password,
       displayName: username,
