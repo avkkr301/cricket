@@ -32,12 +32,20 @@ export default function AccountManagement() {
     setErrorMessage(null);
     try {
       const res = await fetch(`/api/users/list?userId=${user.uid}&role=${user.role}`);
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: { users?: SubUser[]; managers?: ManagerGroup[]; stats?: { totalAccounts: number; totalDistributed: number }; error?: string } = {};
+      if (responseText.trim()) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Network request failed (${res.status})`);
+        }
+      }
       if (!res.ok) throw new Error(data.error || 'Unable to load network accounts');
       if (data.users) {
         if (user.role === 'ADMIN') setManagers(data.managers || []);
         else setUsers(data.users);
-        setStats(data.stats);
+        if (data.stats) setStats(data.stats);
       }
     } catch (error) {
       console.error('Failed to fetch users', error);
