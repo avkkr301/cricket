@@ -13,6 +13,8 @@ type Match = {
   starting_at?: string;
   isLive?: boolean;
   matchType?: string; // 't20' | 'odi' | 'test' | 't10' etc.
+  type?: string;
+  format?: string;
 };
 
 // Statuses Sportmonks uses for ended matches — filter them out
@@ -63,10 +65,12 @@ export default function LiveMatches() {
     return <MatchDetail matchId={selectedMatchId} onBack={() => setSelectedMatchId(null)} />;
   }
 
-  // TODAY tab = live matches at top + upcoming beneath
+  // Home tab combines all live matches with at least five upcoming fixtures
+  // when the providers have that many available. Live matches do not count
+  // toward the upcoming-match minimum.
   const todayMatches: Match[] = [
     ...liveMatches,
-    ...upcomingMatches.filter(u => !liveMatches.find(l => l.id === u.id)),
+    ...upcomingMatches.filter((upcoming) => !liveMatches.some((live) => live.id === upcoming.id)),
   ];
   const liveOnly = liveMatches;
 
@@ -155,14 +159,20 @@ export default function LiveMatches() {
               activeTab === 'TODAY' &&
               liveMatches.length > 0 &&
               idx === liveMatches.length;
+            const matchType = (match.matchType || match.type || match.format || '').toLowerCase();
 
             return (
-              <div key={match.id} className="overflow-hidden rounded-2xl border border-emerald-800/60 bg-[#064238] shadow-lg">
+              <div
+                key={match.id}
+                className={`sportsbook-card overflow-hidden rounded-2xl shadow-lg ${
+                  match.isLive ? 'border-red-500/50 shadow-red-950/40' : ''
+                }`}
+              >
                 {/* Separator between live & upcoming in TODAY tab */}
                 {isFirstUpcoming && (
                   <div className="flex items-center gap-2 px-1 py-2">
-                    <span className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> Today &amp; Tomorrow
+                    <span className="text-xs font-black uppercase tracking-widest text-[#f3b51b] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" /> Upcoming matches
                     </span>
                     <div className="flex-1 h-px bg-gray-800" />
                   </div>
@@ -170,10 +180,10 @@ export default function LiveMatches() {
 
                 <button
                   onClick={() => setSelectedMatchId(match.id)}
-                  className="group flex w-full items-center gap-4 p-4 text-left transition-all hover:bg-emerald-700/30"
+                  className="group flex w-full items-center gap-2 p-3 text-left transition-all hover:bg-emerald-700/30 sm:gap-4 sm:p-4"
                 >
                   {/* Status indicator */}
-                  <div className="flex-shrink-0 w-10 flex flex-col items-center">
+                  <div className="flex w-8 flex-shrink-0 flex-col items-center sm:w-10">
                     {match.isLive ? (
                       <>
                         <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] mb-1" />
@@ -193,6 +203,14 @@ export default function LiveMatches() {
 
                   {/* Match info */}
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {match.isLive && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-red-300">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+                          Live now
+                        </span>
+                      )}
+                    </div>
                     <div className="font-black text-white text-sm leading-tight truncate">
                       {match.localteam?.name}{' '}
                       <span className="text-gray-600 font-normal">v</span>{' '}
@@ -210,16 +228,16 @@ export default function LiveMatches() {
                   </div>
 
                   {/* Match type badge + arrow */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {match.matchType && (
+                  <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+                    {matchType && (
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                        match.matchType === 't20'  ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' :
-                        match.matchType === 'odi'  ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' :
-                        match.matchType === 'test' ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' :
-                        match.matchType === 't10'  ? 'bg-pink-500/15 border-pink-500/30 text-pink-400' :
+                        matchType === 't20'  ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' :
+                        matchType === 'odi'  ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' :
+                        matchType === 'test' ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' :
+                        matchType === 't10'  ? 'bg-pink-500/15 border-pink-500/30 text-pink-400' :
                         'bg-gray-700 border-gray-600 text-gray-400'
                       }`}>
-                        {match.matchType.toUpperCase()}
+                        {matchType.toUpperCase()}
                       </span>
                     )}
                     <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-300 transition-colors" />

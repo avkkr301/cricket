@@ -34,9 +34,10 @@ export const sportmonksService = {
   async getUpcomingMatches() {
     try {
       const today = new Date();
-      // Today + Tomorrow = 48 hours
+      // Load a full week so the home tab can show at least five fixtures,
+      // while still placing live matches ahead of upcoming ones.
       const endOfTomorrow = new Date(today);
-      endOfTomorrow.setDate(today.getDate() + 2);
+      endOfTomorrow.setDate(today.getDate() + 7);
 
       const startDate = today.toISOString().split('T')[0];
       const endDate = endOfTomorrow.toISOString().split('T')[0];
@@ -65,6 +66,24 @@ export const sportmonksService = {
       console.error('Sportmonks getFixture Error:', error.response?.data || error.message);
       throw new Error('Failed to fetch match');
     }
+  },
+
+  async getSettlementResult(id: string): Promise<{ finished: boolean; winnerTeam?: string }> {
+    const response = await this.getFixture(id);
+    const match = response?.data;
+    const home = match?.localteam?.name;
+    const away = match?.visitorteam?.name;
+    const winnerId = match?.winner_team_id ?? match?.winnerTeamId;
+    const winnerTeam = winnerId === match?.localteam_id || winnerId === match?.localteam?.id
+      ? home
+      : winnerId === match?.visitorteam_id || winnerId === match?.visitorteam?.id
+        ? away
+        : match?.winner_team || match?.winnerTeam || match?.result?.winner;
+    const status = String(match?.status || '').toLowerCase();
+    return {
+      finished: Boolean(match?.status === 'Finished' || status.includes('finished') || match?.status === 3),
+      winnerTeam,
+    };
   },
 
   /**

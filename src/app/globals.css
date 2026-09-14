@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #032d24;
-  --foreground: #f5f7f4;
-  --panel: #064238;
-  --panel-strong: #042f28;
+  --background: #07111f;
+  --foreground: #edf3fb;
+  --panel: #101e31;
+  --panel-strong: #0b1728;
   --gold: #f3b51b;
-  --muted: #93aaa2;
+  --muted: #8da0b7;
 }
 
 @theme inline {
@@ -17,10 +17,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  :root { color-scheme: dark; }
 }
 
 body {
@@ -28,8 +25,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   background-image:
-    radial-gradient(circle at 10% -10%, rgba(243, 181, 27, 0.12), transparent 35%),
-    linear-gradient(135deg, #032d24 0%, #021e1a 100%);
+    radial-gradient(circle at 8% -10%, rgba(46, 113, 190, 0.22), transparent 32%),
+    radial-gradient(circle at 90% 0%, rgba(243, 181, 27, 0.08), transparent 28%),
+    linear-gradient(145deg, #07111f 0%, #09192b 48%, #06101d 100%);
+}
+
+@media (max-width: 639px) {
+  html {
+    font-size: 14px;
+  }
 }
 
 button, input {
@@ -37,9 +41,9 @@ button, input {
 }
 
 .exchange-panel {
-  background: linear-gradient(145deg, rgba(7, 67, 56, 0.98), rgba(3, 43, 36, 0.98));
-  border: 1px solid rgba(148, 185, 173, 0.18);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(145deg, rgba(18, 35, 57, 0.98), rgba(10, 24, 42, 0.98));
+  border: 1px solid rgba(132, 158, 190, 0.18);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
 }
 
 .gold-button {
@@ -61,7 +65,27 @@ button, input {
 
 .market-table td,
 .market-table th {
-  border-bottom: 1px solid rgba(148, 185, 173, 0.12);
+  border-bottom: 1px solid rgba(132, 158, 190, 0.14);
+}
+
+.sportsbook-shell {
+  background: #07111f;
+}
+
+.sportsbook-sidebar {
+  background: linear-gradient(180deg, #0b182a 0%, #081321 100%);
+  border-right: 1px solid rgba(132, 158, 190, 0.16);
+}
+
+.sportsbook-card {
+  background: rgba(13, 28, 47, 0.92);
+  border: 1px solid rgba(132, 158, 190, 0.15);
+}
+
+.login-glow {
+  background:
+    linear-gradient(135deg, rgba(8, 22, 39, 0.86), rgba(9, 30, 51, 0.95)),
+    radial-gradient(circle at 70% 15%, rgba(243, 181, 27, 0.2), transparent 28%);
 }
 
 .hide-scrollbar::-webkit-scrollbar {

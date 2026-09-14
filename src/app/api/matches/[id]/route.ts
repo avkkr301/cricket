@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sportmonksService } from '@/services/sportmonks';
 import { cricapiService } from '@/services/cricapi';
+import { entitySportService } from '@/services/entitysport';
 
 export async function GET(
   _req: Request,
@@ -17,9 +18,35 @@ export async function GET(
       return NextResponse.json({ data: match });
     }
 
-    // Otherwise use Sportmonks
-    const data = await sportmonksService.getFixture(id);
-    return NextResponse.json(data);
+    if (id.startsWith('ent-')) {
+      const match = await entitySportService.getMatchDetail(id.replace('ent-', ''));
+      if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+      return NextResponse.json({ data: match });
+    }
+
+    // Otherwise use Sportmonks. Some plans return an error for the fixture
+    // detail endpoint even though the fixture is available in the live/feed
+    // response, so fall back to those normalized records.
+    try {
+      const data = await sportmonksService.getFixture(id);
+      return NextResponse.json(data);
+    } catch (detailError) {
+      const [liveResult, upcomingResult] = await Promise.allSettled([
+        sportmonksService.getLiveMatches(),
+        sportmonksService.getUpcomingMatches(),
+      ]);
+      const fallbackMatches = [
+        ...(liveResult.status === 'fulfilled' ? liveResult.value?.data || [] : []),
+        ...(upcomingResult.status === 'fulfilled' ? upcomingResult.value?.data || [] : []),
+      ];
+      const fallbackMatch = fallbackMatches.find((match: { id?: number | string }) => String(match.id) === id);
+
+      if (fallbackMatch) {
+        return NextResponse.json({ data: fallbackMatch });
+      }
+
+      throw detailError;
+    }
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

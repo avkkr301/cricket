@@ -1,8 +1,5 @@
-warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/app/layout.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/app/page.tsx', LF will be replaced by CRLF the next time Git touches it
-src/app/page.tsx:71: trailing whitespace.
-[32m+[m[41m        [m
-src/app/page.tsx:94: trailing whitespace.
-[32m+[m[41m          [m
+warning: in the working copy of 'src/app/api/matches/[id]/odds/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/matches/[id]/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/matches/live/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/matches/upcoming/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/users/list/route.ts', LF will be replaced by CRLF the next time Git touches it

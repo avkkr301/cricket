@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
+import { isValidMoney, roundMoney } from '@/lib/bets/math';
 
 export async function POST(req: Request) {
   try {
     const { senderId, receiverId, amount } = await req.json();
 
-    if (!senderId || !receiverId || !amount || amount <= 0) {
+    const parsedAmount = Number(amount);
+    if (
+      typeof senderId !== 'string' ||
+      typeof receiverId !== 'string' ||
+      !senderId ||
+      !receiverId ||
+      !isValidMoney(parsedAmount) ||
+      parsedAmount <= 0
+    ) {
       return NextResponse.json({ error: 'Invalid transfer details' }, { status: 400 });
     }
 
@@ -26,7 +35,8 @@ export async function POST(req: Request) {
 
       // Core Rule: If sender is a Manager, check if they have enough balance
       if (senderData?.role === 'MANAGER') {
-        if (senderData.walletBalance < amount) {
+        const senderBalance = roundMoney(Number(senderData.walletBalance) || 0);
+        if (senderBalance < parsedAmount) {
           throw new Error('Insufficient funds in Manager wallet.');
         }
         
@@ -37,7 +47,7 @@ export async function POST(req: Request) {
         
         // Deduct from Manager
         transaction.update(senderRef, {
-          walletBalance: senderData.walletBalance - amount,
+          walletBalance: roundMoney(senderBalance - parsedAmount),
         });
       } 
       else if (senderData?.role === 'ADMIN') {
@@ -52,9 +62,9 @@ export async function POST(req: Request) {
       }
 
       // Add to Receiver
-      const currentReceiverBalance = receiverData?.walletBalance || 0;
+      const currentReceiverBalance = roundMoney(Number(receiverData?.walletBalance) || 0);
       transaction.update(receiverRef, {
-        walletBalance: currentReceiverBalance + amount,
+        walletBalance: roundMoney(currentReceiverBalance + parsedAmount),
       });
 
       // Log the transaction
@@ -62,17 +72,17 @@ export async function POST(req: Request) {
       transaction.set(transactionRef, {
         senderId,
         receiverId,
-        amount,
+        amount: parsedAmount,
         type: 'TRANSFER',
         timestamp: new Date(),
       });
 
-      return { success: true, message: `Successfully transferred ${amount}` };
+      return { success: true, message: `Successfully transferred ${parsedAmount.toFixed(2)}` };
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Transfer Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to transfer funds' }, { status: 500 });
   }
 }

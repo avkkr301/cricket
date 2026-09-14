@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 
+type UserListItem = {
+  id: string;
+  walletBalance?: number;
+  createdAt?: string;
+  [key: string]: unknown;
+};
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -25,11 +32,11 @@ export async function GET(req: Request) {
       .orderBy('createdAt', 'desc')
       .get();
 
-    const users = usersSnapshot.docs.map(doc => ({
+    const users: UserListItem[] = usersSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       // Don't send sensitive info to client
-      createdAt: doc.data().createdAt?.toDate().toISOString(),
+      createdAt: doc.data().createdAt?.toDate?.()?.toISOString(),
     }));
 
     // Generate basic stats

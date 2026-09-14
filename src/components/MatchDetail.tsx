@@ -3,16 +3,18 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ArrowLeft, Tv2, X, AlertTriangle, Clock, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { calculateBet } from '@/lib/bets/math';
 
 type Match = {
   id: number | string;
-  source?: 'sportmonks' | 'cricapi';
+  source?: 'sportmonks' | 'cricapi' | 'entitysport';
   localteam: { name: string; code: string };
   visitorteam: { name: string; code: string };
   note: string;
   status: string;
   starting_at?: string;
   score?: string; // CricAPI: human-readable score string
+  winnerTeam?: string;
   runs?: Array<{ team_id: number; inning: number; score: number; wickets: number; overs: string }>;
 };
 
@@ -23,14 +25,28 @@ type BetSelection = {
   type: 'LAGAI' | 'KHAI';
   market: 'MATCH_ODDS' | 'BOOKMAKER' | 'SESSION';
   odds: number;
+  minStake: number;
+  maxStake: number;
   sessionLabel?: string;
 };
+
+function getStakeLimits(market: BetSelection['market']) {
+  return market === 'BOOKMAKER'
+    ? { minStake: 100, maxStake: 500000 }
+    : { minStake: 100, maxStake: 5000 };
+}
+
+function getBetAmounts(amount: number, odds: number, type: BetSelection['type'], market: BetSelection['market']) {
+  const result = calculateBet(amount, odds, type, market);
+  return { deduction: result.deduction, payout: result.returnAmount, profit: result.profit };
+}
 
 type PlacedBet = {
   id: string;
   selection: string;
   odds: number;
   amount: number;
+  liability?: number;
   status: string;
   placedAt: string | null;
 };
@@ -101,7 +117,7 @@ function BetSlipModal({
   selection: BetSelection;
   balance: number;
   onClose: () => void;
-  onConfirm: (amount: number) => Promise<void>;
+  onConfirm: (amount: number, odds: number) => Promise<void>;
 }) {
   const [amount, setAmount] = useState('');
   const [oddsChanged, setOddsChanged] = useState(false);
@@ -109,8 +125,14 @@ function BetSlipModal({
   const [countdown, setCountdown] = useState(10);
   const [confirming, setConfirming] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const defaultLimits = getStakeLimits(selection.market);
+  const minStake = Number.isFinite(selection.minStake) ? selection.minStake : defaultLimits.minStake;
+  const maxStake = Number.isFinite(selection.maxStake) ? selection.maxStake : defaultLimits.maxStake;
 
-  const profit = amount ? (parseFloat(amount) * (newOdds - 1)).toFixed(2) : '0.00';
+  const stake = parseFloat(amount);
+  const betAmounts = amount ? getBetAmounts(stake, newOdds, selection.type, selection.market) : null;
+  const profit = betAmounts ? betAmounts.profit.toFixed(2) : '0.00';
+  const payout = betAmounts ? betAmounts.payout.toFixed(2) : '0.00';
 
   // Randomly simulate odds drift after 2-4s
   useEffect(() => {
@@ -141,16 +163,21 @@ function BetSlipModal({
   }, [oddsChanged, onClose]);
 
   const handleConfirm = async () => {
-    if (!amount || parseFloat(amount) <= 0) return;
+    if (!amount || stake < minStake || stake > maxStake || !betAmounts || betAmounts.deduction > balance) return;
     setConfirming(true);
-    await onConfirm(parseFloat(amount));
+    await onConfirm(stake, newOdds);
     setConfirming(false);
   };
 
-  const quickAmounts = [100, 500, 1000, 5000, 10000];
+  const quickAmounts = selection.market === 'BOOKMAKER'
+    ? [100, 500, 1000, 5000, 10000]
+    : [100, 500, 1000, 2500, 5000];
+  const invalidStake = Boolean(amount) && (
+    stake < minStake || stake > maxStake || !betAmounts || betAmounts.deduction > balance
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-3" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3" onClick={onClose}>
       <div
         className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -185,7 +212,9 @@ function BetSlipModal({
           {/* Odds & Profit */}
           <div className="flex gap-3">
             <div className={`flex-1 rounded-xl p-3 text-center border ${selection.type === 'LAGAI' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-              <div className="text-[11px] text-gray-400 font-bold mb-1">Odds</div>
+              <div className="text-[11px] text-gray-400 font-bold mb-1">
+                {selection.market === 'BOOKMAKER' ? 'Rate (%)' : 'Odds'}
+              </div>
               <div className={`text-2xl font-black ${selection.type === 'LAGAI' ? 'text-blue-400' : 'text-red-400'}`}>{newOdds}</div>
               {oddsChanged && <div className="text-[10px] text-yellow-400 mt-1">Changed!</div>}
             </div>
@@ -195,20 +224,44 @@ function BetSlipModal({
             </div>
           </div>
 
+          <div className={`rounded-xl border px-3 py-2.5 text-xs ${
+            selection.type === 'LAGAI'
+              ? 'border-blue-500/20 bg-blue-500/10 text-blue-200'
+              : 'border-red-500/20 bg-red-500/10 text-red-200'
+          }`}>
+            {selection.type === 'LAGAI'
+              ? 'Lagai: you pay the full stake. If your selected team wins, your return includes the stake and profit.'
+              : 'Khai: enter the amount you want to win. The platform pays this win amount if your selected team loses; only the liability is deducted.'}
+          </div>
+
           {/* Stake Input */}
           <div>
-            <div className="text-[11px] text-gray-400 font-black uppercase tracking-wider mb-1.5">Stake (₹)</div>
+            <div className="text-[11px] text-gray-400 font-black uppercase tracking-wider mb-1.5">
+              {selection.type === 'KHAI' ? 'Win amount (₹)' : 'Stake (₹)'}
+            </div>
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
+              min={minStake}
+              max={maxStake}
               className="w-full bg-gray-800 border border-gray-600 focus:border-blue-500 rounded-xl px-4 py-3 text-2xl font-black text-white focus:outline-none transition-colors"
             />
             <div className="mt-1.5 flex justify-between text-[11px]">
-              <span className="text-gray-500">Min: ₹100</span>
+              <span className={invalidStake ? 'text-red-400' : 'text-gray-500'}>
+                Min: ₹{minStake.toLocaleString('en-IN')} | Max: ₹{maxStake.toLocaleString('en-IN')}
+              </span>
               <span className="text-gray-400">Balance: <span className="text-white font-bold">₹{balance.toFixed(2)}</span></span>
             </div>
+            <div className="mt-1 text-right text-[11px] text-green-400">
+              {selection.market === 'BOOKMAKER' ? 'Total return' : 'Potential return'}: ₹{payout}
+            </div>
+            {betAmounts && selection.type === 'KHAI' && (
+              <div className="mt-1 text-right text-[11px] text-orange-300">
+                Liability deducted: ₹{betAmounts.deduction.toFixed(2)}
+              </div>
+            )}
           </div>
 
           {/* Quick Stakes */}
@@ -231,7 +284,7 @@ function BetSlipModal({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={confirming || !amount || parseFloat(amount) <= 0}
+              disabled={confirming || !amount || invalidStake}
               className={`flex-[2] font-black py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg text-sm ${
                 oddsChanged
                   ? 'bg-yellow-500 hover:bg-yellow-400 text-black shadow-yellow-500/20'
@@ -265,16 +318,24 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
   const [sessionsOpen, setSessionsOpen] = useState(true);
   const [realOdds, setRealOdds] = useState<RealOdds>(null);
   const [oddsSource, setOddsSource] = useState<'real' | 'generated'>('generated');
+  const [settlementAttempted, setSettlementAttempted] = useState(false);
 
   const generatedOdds = match ? generateOdds(typeof match.id === 'number' ? match.id : 0) : null;
 
   const fetchMatch = useCallback(async () => {
     try {
       const res = await fetch(`/api/matches/${matchId}`);
+      if (!res.ok) {
+        throw new Error(`Match request failed with status ${res.status}`);
+      }
       const data = await res.json();
-      setMatch(data.data ?? null);
-    } catch {
-      /* silent */
+      if (!data.data) {
+        throw new Error('Match response did not contain match data');
+      }
+      setMatch(data.data);
+    } catch (error) {
+      console.error('Failed to load match details:', error);
+      setToast('Unable to load this match. Please refresh.');
     } finally {
       setLoading(false);
     }
@@ -291,17 +352,23 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
     }
   }, [matchId, user]);
 
-  const fetchOdds = useCallback(async (m: Match) => {
+  const fetchOdds = useCallback(async (m: Match, signal?: AbortSignal) => {
     try {
       const res = await fetch(
-        `/api/odds?home=${encodeURIComponent(m.localteam?.name)}&away=${encodeURIComponent(m.visitorteam?.name)}`
+        `/api/odds?home=${encodeURIComponent(m.localteam?.name)}&away=${encodeURIComponent(m.visitorteam?.name)}`,
+        { cache: 'no-store', signal },
       );
       const data = await res.json();
-      if (data.found && data.odds) {
+      if (
+        data.found &&
+        data.odds &&
+        (data.odds.home || data.odds.away)
+      ) {
         setRealOdds(data.odds);
         setOddsSource('real');
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       /* silently fall back to generated */
     }
   }, []);
@@ -313,24 +380,77 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
     return () => clearInterval(interval);
   }, [fetchMatch, fetchBets]);
 
-  // Once match loads, fetch real odds
   useEffect(() => {
-    if (match) fetchOdds(match);
-    const interval = setInterval(() => { if (match) fetchOdds(match); }, 60000);
-    return () => clearInterval(interval);
+    if (!match || settlementAttempted || !['Finished', 'Aban.', 'Cancl.', 'Postp.'].includes(match.status)) return;
+    if (!match.winnerTeam) return;
+
+    setSettlementAttempted(true);
+    fetch('/api/bets/settle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId: String(match.id), winnerTeam: match.winnerTeam }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Settlement failed with status ${response.status}`);
+        return response.json();
+      })
+      .then(() => fetchBets())
+      .catch((error) => {
+        console.error('Automatic bet settlement failed:', error);
+        setSettlementAttempted(false);
+      });
+  }, [fetchBets, match, settlementAttempted]);
+
+  // Keep odds current only while this match detail view is mounted.
+  useEffect(() => {
+    if (!match) return;
+
+    const controller = new AbortController();
+    let requestInFlight = false;
+    const pollOdds = async () => {
+      if (requestInFlight || controller.signal.aborted) return;
+      requestInFlight = true;
+      try {
+        await fetchOdds(match, controller.signal);
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    void pollOdds();
+    const interval = setInterval(() => {
+      void pollOdds();
+    }, 2000);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [match, fetchOdds]);
 
   // Merged odds: real from The Odds API if available, else generated
+  const isValidDecimalOdds = (value: unknown): value is { lagai: number; khai: number } =>
+    typeof value === 'object' &&
+    value !== null &&
+    Number.isFinite((value as Record<string, unknown>).lagai) &&
+    Number.isFinite((value as Record<string, unknown>).khai) &&
+    (value as Record<string, number>).lagai > 1 &&
+    (value as Record<string, number>).khai > 1;
+
   const odds = {
     matchOdds: {
-      local: realOdds?.home ?? generatedOdds?.matchOdds.local ?? { lagai: 1.8, khai: 1.82 },
-      visitor: realOdds?.away ?? generatedOdds?.matchOdds.visitor ?? { lagai: 2.2, khai: 2.22 },
+      local: isValidDecimalOdds(realOdds?.home)
+        ? realOdds.home
+        : generatedOdds?.matchOdds.local ?? { lagai: 1.8, khai: 1.82 },
+      visitor: isValidDecimalOdds(realOdds?.away)
+        ? realOdds.away
+        : generatedOdds?.matchOdds.visitor ?? { lagai: 2.2, khai: 2.22 },
     },
     bookmaker: generatedOdds?.bookmaker ?? { local: { lagai: 70, khai: 72 }, visitor: { lagai: 120, khai: 128 } },
     sessions: generatedOdds?.sessions ?? [],
   };
 
-  const handleConfirmBet = async (amount: number) => {
+  const handleConfirmBet = async (amount: number, appliedOdds: number) => {
     if (!user || !selectedBet || !match) return;
     try {
       const res = await fetch('/api/bet', {
@@ -340,8 +460,10 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
           userId: user.uid,
           matchId: matchId.toString(),
           selection: `${selectedBet.type} - ${selectedBet.team}${selectedBet.sessionLabel ? ' (' + selectedBet.sessionLabel + ')' : ''}`,
-          odds: selectedBet.odds,
+          odds: appliedOdds,
           amount,
+          market: selectedBet.market,
+          type: selectedBet.type,
         }),
       });
       const data = await res.json();
@@ -358,6 +480,7 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
 
   const selectBet = (team: string, type: 'LAGAI' | 'KHAI', market: BetSelection['market'], oddsVal: number, sessionLabel?: string) => {
     if (!match) return;
+    const { minStake, maxStake } = getStakeLimits(market);
     setSelectedBet({
       matchId: Number(match.id),
       matchName: `${match.localteam?.name} v ${match.visitorteam?.name}`,
@@ -365,6 +488,8 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
       type,
       market,
       odds: oddsVal,
+      minStake,
+      maxStake,
       sessionLabel,
     });
   };
@@ -387,9 +512,13 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
     );
   }
 
-  const isLive = match.status === 'Inprogress';
-  const isEnded = ['Finished', 'Aban.', 'Cancl.', 'Postp.'].includes(match.status);
+  const normalisedStatus = String(match.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+  const isLive = ['inprogress', 'live', '1stinnings', '2ndinnings', 'break', 'lunch', 'tea', 'dinner', 'drinks'].includes(normalisedStatus);
+  const isEnded = ['finished', 'aban.', 'cancl.', 'postp.', 'interrupted', 'abandoned', 'cancelled', 'postponed'].includes(normalisedStatus);
   const matchName = `${match.localteam?.name} v ${match.visitorteam?.name}`;
+  const pendingStake = placedBets
+    .filter((bet) => bet.status === 'PENDING')
+    .reduce((total, bet) => total + Number(bet.amount || 0), 0);
   const localRun = match.runs?.find(r => r.team_id === (match.localteam as any)?.id);
   const visitorRun = match.runs?.find(r => r.team_id === (match.visitorteam as any)?.id);
 
@@ -406,18 +535,18 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
       </div>
 
       {/* Match Header Card */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        <div className="bg-gray-950 px-4 py-3 flex items-center justify-between border-b border-gray-800">
-          <div className="flex items-center gap-2">
+      <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-950 px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isLive && (
-              <span className="flex items-center text-xs font-black text-red-500 uppercase tracking-widest">
-                <span className="w-2 h-2 bg-red-500 rounded-full mr-1.5 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.9)]" />
-                LIVE
+              <span className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-red-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-400 shadow-[0_0_6px_rgba(239,68,68,0.9)]" />
+                Live now
               </span>
             )}
             {isEnded && <span className="text-xs font-black text-gray-500 uppercase tracking-widest">ENDED</span>}
             {!isLive && !isEnded && <span className="text-xs font-bold text-blue-400">UPCOMING</span>}
-            <span className="text-gray-400 text-sm">{match.note}</span>
+            <span className="truncate text-sm text-gray-400">{match.note}</span>
           </div>
           <button className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-blue-400 transition-colors">
             <Tv2 className="w-4 h-4" />
@@ -431,9 +560,9 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
             <div className="text-green-400 font-bold text-sm whitespace-pre-wrap">{match.score}</div>
           </div>
         ) : (
-          <div className="p-5 grid grid-cols-3 items-center text-center">
+          <div className="grid grid-cols-1 items-center gap-3 p-4 text-center sm:grid-cols-3 sm:p-5">
             <div>
-              <div className="font-black text-xl text-white">{match.localteam?.name}</div>
+              <div className="break-words text-lg font-black text-white sm:text-xl">{match.localteam?.name}</div>
               {localRun && (
                 <div className="text-2xl font-black text-green-400 mt-1">
                   {localRun.score}/{localRun.wickets}
@@ -441,9 +570,9 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
                 </div>
               )}
             </div>
-            <div className="text-gray-700 font-black text-2xl italic">VS</div>
+            <div className="text-gray-700 font-black text-lg italic sm:text-2xl">VS</div>
             <div>
-              <div className="font-black text-xl text-white">{match.visitorteam?.name}</div>
+              <div className="break-words text-lg font-black text-white sm:text-xl">{match.visitorteam?.name}</div>
               {visitorRun && (
                 <div className="text-2xl font-black text-green-400 mt-1">
                   {visitorRun.score}/{visitorRun.wickets}
@@ -463,12 +592,11 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
           <p className="text-gray-500 mt-2 text-sm">This match has concluded. No further bets can be placed.</p>
         </div>
       ) : (
-        odds && (
-          <>
+        <>
             {/* Match Odds */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-              <div className="bg-gray-950 px-4 py-2.5 border-b border-gray-800 flex justify-between items-center">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-950 px-3 py-2.5 sm:px-4">
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                   <span className="text-xs font-black text-gray-300 uppercase tracking-wider">Match Odds</span>
                   {oddsSource === 'real' ? (
                     <span className="text-[9px] font-black bg-green-500/15 border border-green-500/30 text-green-400 px-2 py-0.5 rounded-full uppercase tracking-wider">🟢 Live Odds</span>
@@ -481,54 +609,23 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-1 mb-1">
                   <div className="flex-1" />
-                  <div className="flex gap-1 w-[150px]">
+                  <div className="flex w-full gap-1 sm:w-[150px]">
                     <div className="flex-1 text-center text-[10px] font-black text-blue-400 uppercase tracking-wider">Lagai</div>
                     <div className="flex-1 text-center text-[10px] font-black text-red-400 uppercase tracking-wider">Khai</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                   <div className="flex-1 font-bold text-white">{match.localteam?.name}</div>
-                  <div className="flex gap-1 w-[150px]">
+                  <div className="flex w-full gap-1 sm:w-[150px]">
                     <OddsBtn value={odds.matchOdds.local.lagai} type="LAGAI" onClick={() => selectBet(match.localteam.name, 'LAGAI', 'MATCH_ODDS', odds.matchOdds.local.lagai)} />
                     <OddsBtn value={odds.matchOdds.local.khai} type="KHAI" onClick={() => selectBet(match.localteam.name, 'KHAI', 'MATCH_ODDS', odds.matchOdds.local.khai)} />
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                   <div className="flex-1 font-bold text-white">{match.visitorteam?.name}</div>
-                  <div className="flex gap-1 w-[150px]">
+                  <div className="flex w-full gap-1 sm:w-[150px]">
                     <OddsBtn value={odds.matchOdds.visitor.lagai} type="LAGAI" onClick={() => selectBet(match.visitorteam.name, 'LAGAI', 'MATCH_ODDS', odds.matchOdds.visitor.lagai)} />
                     <OddsBtn value={odds.matchOdds.visitor.khai} type="KHAI" onClick={() => selectBet(match.visitorteam.name, 'KHAI', 'MATCH_ODDS', odds.matchOdds.visitor.khai)} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bookmaker Odds */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-              <div className="bg-gray-950 px-4 py-2.5 border-b border-gray-800 flex justify-between items-center">
-                <span className="text-xs font-black text-gray-300 uppercase tracking-wider">Bookmaker Odds</span>
-                <span className="text-xs text-gray-600">Min: 100 | Max: 5,00,000</span>
-              </div>
-              <div className="p-4 space-y-2">
-                <div className="flex items-center gap-1 mb-1">
-                  <div className="flex-1" />
-                  <div className="flex gap-1 w-[150px]">
-                    <div className="flex-1 text-center text-[10px] font-black text-blue-400 uppercase tracking-wider">Lagai</div>
-                    <div className="flex-1 text-center text-[10px] font-black text-red-400 uppercase tracking-wider">Khai</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 font-bold text-white">{match.localteam?.name}</div>
-                  <div className="flex gap-1 w-[150px]">
-                    <OddsBtn value={odds.bookmaker.local.lagai} type="LAGAI" onClick={() => selectBet(match.localteam.name, 'LAGAI', 'BOOKMAKER', odds.bookmaker.local.lagai)} />
-                    <OddsBtn value={odds.bookmaker.local.khai} type="KHAI" onClick={() => selectBet(match.localteam.name, 'KHAI', 'BOOKMAKER', odds.bookmaker.local.khai)} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 font-bold text-white">{match.visitorteam?.name}</div>
-                  <div className="flex gap-1 w-[150px]">
-                    <OddsBtn value={odds.bookmaker.visitor.lagai} type="LAGAI" onClick={() => selectBet(match.visitorteam.name, 'LAGAI', 'BOOKMAKER', odds.bookmaker.visitor.lagai)} />
-                    <OddsBtn value={odds.bookmaker.visitor.khai} type="KHAI" onClick={() => selectBet(match.visitorteam.name, 'KHAI', 'BOOKMAKER', odds.bookmaker.visitor.khai)} />
                   </div>
                 </div>
               </div>
@@ -548,16 +645,16 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
                   <div className="p-4">
                     <div className="flex items-center mb-2">
                       <div className="flex-1" />
-                      <div className="flex gap-1 w-[150px]">
+                      <div className="flex w-full gap-1 sm:w-[150px]">
                         <div className="flex-1 text-center text-[10px] font-black text-red-400 uppercase tracking-wider">No</div>
                         <div className="flex-1 text-center text-[10px] font-black text-blue-400 uppercase tracking-wider">Yes</div>
                       </div>
                     </div>
                     <div className="space-y-2">
                       {odds.sessions.map((session, i) => (
-                        <div key={i} className="flex items-center gap-2">
+                        <div key={i} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                           <div className="flex-1 text-sm text-gray-300 leading-tight">{session.label}</div>
-                          <div className="flex gap-1 w-[150px]">
+                          <div className="flex w-full gap-1 sm:w-[150px]">
                             <button
                               onClick={() => selectBet(session.label, 'KHAI', 'SESSION', session.no, session.label)}
                               className="flex-1 flex flex-col items-center bg-red-500/15 hover:bg-red-500/30 border border-red-500/20 hover:border-red-400 rounded-lg py-1.5 transition-all active:scale-95"
@@ -580,14 +677,20 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
                 )}
               </div>
             )}
-          </>
-        )
+        </>
       )}
 
       {/* ── Match Bet Report ───────────────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
         <div className="bg-gray-950 px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
-          <span className="text-xs font-black text-gray-300 uppercase tracking-wider">My Bets · This Match</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black text-gray-300 uppercase tracking-wider">My Bets · This Match</span>
+            {pendingStake > 0 && (
+              <span className="text-[10px] font-black rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-orange-300">
+                Pending ₹{pendingStake.toFixed(2)}
+              </span>
+            )}
+          </div>
           <span className={`text-xs font-black px-2 py-0.5 rounded-full ${placedBets.length > 0 ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
             {placedBets.length} Bet{placedBets.length !== 1 ? 's' : ''}
           </span>
@@ -613,7 +716,7 @@ export default function MatchDetail({ matchId, onBack }: { matchId: number | str
                     <td className="px-4 py-2.5 text-gray-500">{i + 1}</td>
                     <td className="px-4 py-2.5 font-bold text-white">{bet.selection}</td>
                     <td className="px-4 py-2.5 text-center text-blue-400 font-mono font-bold">{bet.odds}</td>
-                    <td className="px-4 py-2.5 text-center text-white font-bold">₹{bet.amount}</td>
+                    <td className="px-4 py-2.5 text-center text-white font-bold">₹{(bet.liability ?? bet.amount).toFixed(2)}</td>
                     <td className="px-4 py-2.5 text-center">
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
                         bet.status === 'WON' ? 'bg-green-500/10 text-green-400 border-green-500/20'

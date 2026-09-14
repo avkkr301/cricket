@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cricket Exchange",
-  description: "Live Cricket Betting Platform",
+  title: "WINEXCH | Cricket Exchange",
+  description: "Live cricket markets and exchange betting",
 };
 
 export default function RootLayout({

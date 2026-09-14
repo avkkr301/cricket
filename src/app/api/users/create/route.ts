@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { isValidMoney, roundMoney } from '@/lib/bets/math';
 
 export async function POST(req: Request) {
   try {
@@ -9,10 +10,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const parsedBalance = parseFloat(initialBalance);
-    if (isNaN(parsedBalance) || parsedBalance < 0) {
+    const parsedBalance = Number(initialBalance);
+    if (!isValidMoney(parsedBalance)) {
       return NextResponse.json({ error: 'Invalid initial balance' }, { status: 400 });
     }
+    const startingBalance = roundMoney(parsedBalance);
 
     // Determine default password based on role
     const defaultPassword = role === 'MANAGER' ? '1111' : '0000';
@@ -45,12 +47,12 @@ export async function POST(req: Request) {
       // Handle Manager Balance Deduction for User Creation
       if (creatorRole === 'MANAGER') {
         const creatorBalance = Number(creatorData?.walletBalance) || 0;
-        if (creatorBalance < parsedBalance) {
+        if (creatorBalance < startingBalance) {
           throw new Error(`Insufficient funds. You only have $${creatorBalance} available.`);
         }
         // Deduct from Manager
         transaction.update(creatorRef, {
-          walletBalance: creatorBalance - parsedBalance,
+          walletBalance: roundMoney(creatorBalance - startingBalance),
         });
       }
 
@@ -64,8 +66,11 @@ export async function POST(req: Request) {
           password: paddedPassword,
           displayName: username,
         });
-      } catch (authError: any) {
-        if (authError.code === 'auth/email-already-exists') {
+      } catch (authError: unknown) {
+        const authCode = authError instanceof Error && 'code' in authError
+          ? String(authError.code)
+          : '';
+        if (authCode === 'auth/email-already-exists') {
           throw new Error('Username already exists. Please choose another.');
         }
         throw authError;
@@ -78,19 +83,19 @@ export async function POST(req: Request) {
         email: spoofedEmail,
         role, 
         parentId: role === 'ADMIN' ? null : creatorId,
-        walletBalance: parsedBalance,
+        walletBalance: startingBalance,
         isRestricted: false,
         mustChangePassword: true, // Flag to force password reset on first login
         createdAt: new Date(),
       });
 
       // 4. Log the transaction if money was moved
-      if (parsedBalance > 0) {
+      if (startingBalance > 0) {
         const transactionLogRef = adminDb.collection('transactions').doc();
         transaction.set(transactionLogRef, {
           senderId: creatorId,
           receiverId: userRecord.uid,
-          amount: parsedBalance,
+          amount: startingBalance,
           type: 'TRANSFER',
           note: 'Initial account creation funding',
           timestamp: new Date(),
@@ -102,12 +107,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
         success: true, 
-        message: `${result.role} account created successfully with starting balance of $${parsedBalance}!`,
+        message: `${result.role} account created successfully with starting balance of $${startingBalance.toFixed(2)}!`,
         userId: result.uid 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Account Creation Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create account' }, { status: 500 });
   }
 }

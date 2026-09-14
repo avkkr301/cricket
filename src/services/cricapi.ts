@@ -15,6 +15,7 @@ export type CricAPIMatch = {
   status: string;
   starting_at?: string;
   score?: string;
+  winnerTeam?: string;
   matchType?: string; // 't20' | 'odi' | 'test' | 't10' etc.
 };
 
@@ -41,41 +42,11 @@ function normalise(raw: RawCricScore): CricAPIMatch {
     source:      'cricapi',
     localteam:   { name: raw.t1 || 'Team 1', code: raw.t1s || 'T1' },
     visitorteam: { name: raw.t2 || 'Team 2', code: raw.t2s || 'T2' },
-    note:        raw.series || '',
+    note:          raw.series || '',
     status:      mapStatus(raw.ms),
     score:       raw.t1score && raw.t2score ? `${raw.t1}: ${raw.t1score} | ${raw.t2}: ${raw.t2score}` : undefined,
     matchType:   raw.matchType?.toLowerCase(),
   };
-}
-
-// Only these match types are cricket
-const CRICKET_TYPES = ['t20', 'odi', 'test', 't10', 'hundred', 'firstclass', 'listA', 'other'];
-
-// Domestic series keywords to EXCLUDE — no odds exist for these
-const DOMESTIC_KEYWORDS = [
-  'county championship',
-  'domestic',
-  'one-day cup',
-  'division one',
-  'division two',
-  'division 1',
-  'division 2',
-  'royal london',
-  'vitality blast',
-  'sheffield shield',
-  'plunket shield',
-  'ranji trophy',
-  'duleep trophy',
-  'irani cup',
-  'vijay hazare',
-  'syed mushtaq',
-  'list a',
-  'four-day',
-];
-
-function isDomestic(series: string): boolean {
-  const lower = series.toLowerCase();
-  return DOMESTIC_KEYWORDS.some(kw => lower.includes(kw));
 }
 
 export const cricapiService = {
@@ -88,18 +59,7 @@ export const cricapiService = {
       const raw: RawCricScore[] = res.data.data || [];
       return raw
         .map(normalise)
-        .filter(m => {
-          // Remove finished matches
-          if (m.status === 'Finished') return false;
-          // Always keep T20 league matches (CPL, IPL, BBL, PSL, etc.)
-          if (m.matchType === 't20') return true;
-          // For ODI and Test: only keep internationals (filter out domestic)
-          if (m.matchType === 'odi' || m.matchType === 'test') {
-            return !isDomestic(m.note);
-          }
-          // Keep t10, hundred, etc.
-          return true;
-        });
+        .filter(m => m.status !== 'Finished');
     } catch (err: any) {
       console.error('CricAPI getAllMatches error:', err.response?.data || err.message);
       return [];
@@ -136,6 +96,7 @@ export const cricapiService = {
         status:      d.matchStarted && !d.matchEnded ? 'Inprogress' : d.matchEnded ? 'Finished' : 'NS',
         starting_at: d.dateTimeGMT,
         score:       d.score?.map((s: { inning: string; r: number; w: number; o: number }) => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(' | '),
+        winnerTeam: d.matchWinner || d.winner || d.winningTeam,
       };
     } catch (err: any) {
       console.error('CricAPI matchDetail error:', err.response?.data || err.message);
