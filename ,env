@@ -15,6 +15,7 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFA
 SPORTMONKS_API_TOKEN="QCjso3cv11L9358xD3GPRkTpmszAQU98SVu9etAozRdbmWg4TawI0G3enxEd"
 
 # For CricAPI (cricketdata.org)
+
 CRICAPI_KEY="a1c463a9-3730-4313-8d07-446301d8cf2b"
 
 # For The Odds API (the-odds-api.com)
