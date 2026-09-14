@@ -25,12 +25,15 @@ export default function AccountManagement() {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [adjustments, setAdjustments] = useState<Record<string, { amount: string; reason: string }>>({});
   const [adjusting, setAdjusting] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     if (!user) return;
+    setErrorMessage(null);
     try {
       const res = await fetch(`/api/users/list?userId=${user.uid}&role=${user.role}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load network accounts');
       if (data.users) {
         if (user.role === 'ADMIN') setManagers(data.managers || []);
         else setUsers(data.users);
@@ -38,6 +41,7 @@ export default function AccountManagement() {
       }
     } catch (error) {
       console.error('Failed to fetch users', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load network accounts');
     } finally {
       setLoading(false);
     }
@@ -124,7 +128,12 @@ export default function AccountManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
+    {errorMessage && (
+      <div className="rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+        {errorMessage}
+      </div>
+    )}
+    {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex items-center shadow-lg">
           <div className="p-3 bg-blue-500/10 rounded-lg mr-4">
