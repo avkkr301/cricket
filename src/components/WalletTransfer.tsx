@@ -1,14 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function WalletTransfer() {
   const { user } = useAuth();
+  const [receivers, setReceivers] = useState<Array<{ id: string; username: string; role: string }>>([]);
   const [receiverId, setReceiverId] = useState('');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  useEffect(() => {
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) return;
+    fetch(`/api/users/list?userId=${user.uid}&role=${user.role}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to load recipients');
+        const accounts = user.role === 'ADMIN'
+          ? (data.managers || []).map((manager: { id: string; username: string; role?: string }) => ({
+              id: manager.id,
+              username: manager.username,
+              role: manager.role || 'MANAGER',
+            }))
+          : (data.users || []).map((account: { id: string; username: string; role?: string }) => ({
+              id: account.id,
+              username: account.username,
+              role: account.role || 'USER',
+            }));
+        setReceivers(accounts);
+      })
+      .catch((error) => setMessage({ text: error instanceof Error ? error.message : 'Unable to load recipients', type: 'error' }));
+  }, [user]);
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +58,8 @@ export default function WalletTransfer() {
       setMessage({ text: 'Transfer successful!', type: 'success' });
       setReceiverId('');
       setAmount('');
-    } catch (err: any) {
-      setMessage({ text: err.message, type: 'error' });
+    } catch (err: unknown) {
+      setMessage({ text: err instanceof Error ? err.message : 'Unable to transfer funds', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -51,15 +74,21 @@ export default function WalletTransfer() {
       )}
       
       <div>
-        <label className="block text-sm font-medium mb-1">Receiver User ID</label>
-        <input 
-          type="text" 
+        <label className="block text-sm font-medium mb-1">Receiver</label>
+        <select
           value={receiverId}
           onChange={(e) => setReceiverId(e.target.value)}
           className="w-full p-2 bg-gray-900 border border-gray-600 rounded focus:border-blue-400 focus:outline-none"
           required
-          placeholder="Paste User UID here"
-        />
+        >
+          <option value="">Select an account</option>
+          {receivers.map((receiver) => (
+            <option key={receiver.id} value={receiver.id}>
+              {receiver.username} ({receiver.role})
+            </option>
+          ))}
+        </select>
+        {receivers.length === 0 && <p className="mt-1 text-xs text-gray-500">No eligible accounts found.</p>}
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">Amount ($)</label>

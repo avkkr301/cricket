@@ -121,8 +121,32 @@ export default function ReportsPanel() {
 
   if (loading) return <div className="animate-pulse text-gray-500">Loading ledger...</div>;
 
+  const wonBets = bets.filter((bet) => bet.status === 'WON');
+  const lostBets = bets.filter((bet) => bet.status === 'LOST');
+  const pendingBets = bets.filter((bet) => bet.status === 'PENDING');
+  const credits = filteredTransactions
+    .filter((tx) => tx.receiverId === user?.uid || ['ADMIN_CREDIT', 'WIN_REWARD'].includes(tx.type))
+    .reduce((total, tx) => total + Number(tx.amount || 0), 0);
+  const debits = filteredTransactions
+    .filter((tx) => tx.senderId === user?.uid || ['ADMIN_DEBIT', 'BET_DEDUCTION'].includes(tx.type))
+    .reduce((total, tx) => total + Number(tx.amount || 0), 0);
+
   return (
     <div className="space-y-6 mt-8">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {[
+          ['Total bets', bets.length, 'text-white'],
+          ['Won', wonBets.length, 'text-green-400'],
+          ['Lost', lostBets.length, 'text-red-400'],
+          ['Pending', pendingBets.length, 'text-orange-400'],
+          ['Net ledger', `₹${(credits - debits).toFixed(2)}`, credits >= debits ? 'text-green-400' : 'text-red-400'],
+        ].map(([label, value, color]) => (
+          <div key={String(label)} className="rounded-xl border border-gray-800 bg-gray-900 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{label}</div>
+            <div className={`mt-1 text-lg font-black ${color}`}>{value}</div>
+          </div>
+        ))}
+      </div>
       {(user?.role === 'USER' || user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-gray-800/50 p-4 sm:p-6">

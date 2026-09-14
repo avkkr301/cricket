@@ -3,8 +3,10 @@ import { adminDb } from '@/lib/firebase/admin';
 
 type UserListItem = {
   id: string;
+  parentId?: string | null;
   walletBalance?: number;
   createdAt?: string;
+  users?: UserListItem[];
   [key: string]: unknown;
 };
 
@@ -22,14 +24,48 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Admins see Managers, Managers see Users
-    const targetRole = role === 'ADMIN' ? 'MANAGER' : 'USER';
+    if (role === 'ADMIN') {
+      const [managersSnapshot, usersSnapshot] = await Promise.all([
+        adminDb.collection('users').where('role', '==', 'MANAGER').get(),
+        adminDb.collection('users').where('role', '==', 'USER').get(),
+      ]);
+
+      const managers: Array<UserListItem & { users: UserListItem[] }> = managersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.()?.toISOString(),
+        users: usersSnapshot.docs
+          .filter((userDoc) => userDoc.data().parentId === doc.id)
+          .map((userDoc) => ({
+            id: userDoc.id,
+            ...userDoc.data(),
+            createdAt: userDoc.data().createdAt?.toDate?.()?.toISOString(),
+          })),
+      }));
+      const byCreatedAt = (left: UserListItem, right: UserListItem) =>
+        String(right.createdAt || '').localeCompare(String(left.createdAt || ''));
+      managers.sort(byCreatedAt);
+      managers.forEach((manager) => manager.users.sort(byCreatedAt));
+      const users = managers.flatMap((manager) => manager.users);
+      return NextResponse.json({
+        users: managers,
+        managers,
+        stats: {
+          totalAccounts: managers.length,
+          totalUsers: users.length,
+          totalDistributed: managers.reduce((sum, manager) => sum + (Number(manager.walletBalance) || 0), 0),
+          totalUserBalance: users.reduce((sum, listedUser) => sum + (Number(listedUser.walletBalance) || 0), 0),
+        },
+      });
+    }
+
+    // Managers see their direct users.
+    const targetRole = 'USER';
 
     const usersSnapshot = await adminDb
       .collection('users')
       .where('role', '==', targetRole)
       .where('parentId', '==', role === 'ADMIN' ? null : userId)
-      .orderBy('createdAt', 'desc')
       .get();
 
     const users: UserListItem[] = usersSnapshot.docs.map(doc => ({
@@ -38,6 +74,9 @@ export async function GET(req: Request) {
       // Don't send sensitive info to client
       createdAt: doc.data().createdAt?.toDate?.()?.toISOString(),
     }));
+    users.sort((left, right) =>
+      String(right.createdAt || '').localeCompare(String(left.createdAt || '')),
+    );
 
     // Generate basic stats
     const totalBalance = users.reduce((sum, u) => sum + (Number(u.walletBalance) || 0), 0);
