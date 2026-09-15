@@ -4,7 +4,7 @@ import { isValidMoney, roundMoney } from '@/lib/bets/math';
 
 export async function POST(req: Request) {
   try {
-    const { senderId, receiverId, amount } = await req.json();
+    const { senderId, receiverId, amount, operation = 'TRANSFER' } = await req.json();
 
     const parsedAmount = Number(amount);
     if (
@@ -12,6 +12,7 @@ export async function POST(req: Request) {
       typeof receiverId !== 'string' ||
       !senderId ||
       !receiverId ||
+      (operation !== 'TRANSFER' && operation !== 'WITHDRAW') ||
       !isValidMoney(parsedAmount) ||
       parsedAmount <= 0
     ) {
@@ -32,6 +33,39 @@ export async function POST(req: Request) {
 
       const senderData = senderDoc.data();
       const receiverData = receiverDoc.data();
+
+      if (operation === 'WITHDRAW') {
+        if (senderData?.role !== 'MANAGER') {
+          throw new Error('Only managers can withdraw funds from users.');
+        }
+        if (receiverData?.role !== 'USER' || receiverData.parentId !== senderId) {
+          throw new Error('Managers can only withdraw from their assigned users.');
+        }
+
+        const userBalance = roundMoney(Number(receiverData.walletBalance) || 0);
+        if (userBalance < parsedAmount) {
+          throw new Error('Insufficient funds in the user wallet.');
+        }
+
+        const managerBalance = roundMoney(Number(senderData.walletBalance) || 0);
+        transaction.update(receiverRef, {
+          walletBalance: roundMoney(userBalance - parsedAmount),
+        });
+        transaction.update(senderRef, {
+          walletBalance: roundMoney(managerBalance + parsedAmount),
+        });
+
+        transaction.set(adminDb.collection('transactions').doc(), {
+          senderId: receiverId,
+          receiverId: senderId,
+          amount: parsedAmount,
+          type: 'USER_WITHDRAWAL',
+          reason: 'Manager withdrawal from subordinate user',
+          timestamp: new Date(),
+        });
+
+        return { success: true, message: `Successfully withdrew ${parsedAmount.toFixed(2)}` };
+      }
 
       // Core Rule: If sender is a Manager, check if they have enough balance
       if (senderData?.role === 'MANAGER') {

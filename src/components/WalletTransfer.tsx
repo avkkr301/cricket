@@ -8,6 +8,7 @@ export default function WalletTransfer() {
   const [receivers, setReceivers] = useState<Array<{ id: string; username: string; role: string }>>([]);
   const [receiverId, setReceiverId] = useState('');
   const [amount, setAmount] = useState('');
+  const [operation, setOperation] = useState<'TRANSFER' | 'WITHDRAW'>('TRANSFER');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
@@ -47,7 +48,8 @@ export default function WalletTransfer() {
         body: JSON.stringify({
           senderId: user.uid,
           receiverId,
-          amount: parseFloat(amount)
+          amount: parseFloat(amount),
+          operation,
         })
       });
 
@@ -55,7 +57,7 @@ export default function WalletTransfer() {
       
       if (!res.ok) throw new Error(data.error);
 
-      setMessage({ text: 'Transfer successful!', type: 'success' });
+      setMessage({ text: operation === 'WITHDRAW' ? 'Withdrawal successful!' : 'Transfer successful!', type: 'success' });
       setReceiverId('');
       setAmount('');
     } catch (err: unknown) {
@@ -73,8 +75,26 @@ export default function WalletTransfer() {
         </div>
       )}
       
+      {user?.role === 'MANAGER' && (
+        <div className="flex rounded-lg bg-gray-900 p-1">
+          <button
+            type="button"
+            onClick={() => setOperation('TRANSFER')}
+            className={`flex-1 rounded px-3 py-2 text-sm font-bold ${operation === 'TRANSFER' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+          >
+            Transfer to user
+          </button>
+          <button
+            type="button"
+            onClick={() => setOperation('WITHDRAW')}
+            className={`flex-1 rounded px-3 py-2 text-sm font-bold ${operation === 'WITHDRAW' ? 'bg-amber-600 text-white' : 'text-gray-400'}`}
+          >
+            Withdraw from user
+          </button>
+        </div>
+      )}
       <div>
-        <label className="block text-sm font-medium mb-1">Receiver</label>
+        <label className="block text-sm font-medium mb-1">{operation === 'WITHDRAW' ? 'User account' : 'Receiver'}</label>
         <select
           value={receiverId}
           onChange={(e) => setReceiverId(e.target.value)}
@@ -107,7 +127,7 @@ export default function WalletTransfer() {
         disabled={loading || user?.isRestricted}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded transition-colors"
       >
-        {loading ? 'Processing...' : 'Transfer Funds'}
+        {loading ? 'Processing...' : operation === 'WITHDRAW' ? 'Withdraw Funds' : 'Transfer Funds'}
       </button>
     </form>
   );
