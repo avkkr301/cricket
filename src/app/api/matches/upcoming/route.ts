@@ -20,7 +20,7 @@ export async function GET() {
     const combined = [...taggedSportmonks, ...cricapi, ...entitysport];
 
     return NextResponse.json({ data: combined, total: combined.length });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load upcoming matches' }, { status: 500 });
   }
 }

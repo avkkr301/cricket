@@ -17,6 +17,7 @@ export type CricAPIMatch = {
   score?: string;
   winnerTeam?: string;
   matchType?: string; // 't20' | 'odi' | 'test' | 't10' etc.
+  balls?: unknown[];
 };
 
 type RawCricScore = {
@@ -60,8 +61,8 @@ export const cricapiService = {
       return raw
         .map(normalise)
         .filter(m => m.status !== 'Finished');
-    } catch (err: any) {
-      console.error('CricAPI getAllMatches error:', err.response?.data || err.message);
+    } catch (err: unknown) {
+      console.error('CricAPI getAllMatches error:', axios.isAxiosError(err) ? err.response?.data : err instanceof Error ? err.message : err);
       return [];
     }
   },
@@ -97,9 +98,10 @@ export const cricapiService = {
         starting_at: d.dateTimeGMT,
         score:       d.score?.map((s: { inning: string; r: number; w: number; o: number }) => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(' | '),
         winnerTeam: d.matchWinner || d.winner || d.winningTeam,
+        balls: Array.isArray(d.balls) ? d.balls : undefined,
       };
-    } catch (err: any) {
-      console.error('CricAPI matchDetail error:', err.response?.data || err.message);
+    } catch (err: unknown) {
+      console.error('CricAPI matchDetail error:', axios.isAxiosError(err) ? err.response?.data : err instanceof Error ? err.message : err);
       return null;
     }
   },

@@ -50,8 +50,8 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true, message: 'User successfully deleted and access revoked.' });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete User Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to delete user' }, { status: 500 });
   }
 }

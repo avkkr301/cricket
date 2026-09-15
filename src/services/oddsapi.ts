@@ -32,9 +32,9 @@ export type OddsMatch = {
   }>;
 };
 
-// Cache odds for 60s to avoid burning quota
+// Cache odds for five seconds so open bet slips receive fresh market prices.
 const cache: { data: OddsMatch[]; fetchedAt: number } = { data: [], fetchedAt: 0 };
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5_000;
 
 export const oddsApiService = {
   async getAllCricketOdds(): Promise<OddsMatch[]> {
@@ -67,8 +67,8 @@ export const oddsApiService = {
       cache.data = all;
       cache.fetchedAt = Date.now();
       return all;
-    } catch (err: any) {
-      console.error('OddsAPI error:', err.response?.data || err.message);
+    } catch (err: unknown) {
+      console.error('OddsAPI error:', axios.isAxiosError(err) ? err.response?.data : err instanceof Error ? err.message : err);
       return cache.data; // return stale cache on error
     }
   },

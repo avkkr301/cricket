@@ -1,6 +1,28 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { calculateBet, isValidMoney, roundMoney, type BetMarket, type BetType } from '@/lib/bets/math';
+import { sportmonksService } from '@/services/sportmonks';
+import { cricapiService } from '@/services/cricapi';
+import { entitySportService } from '@/services/entitysport';
+
+const LIVE_STATUSES = new Set(['inprogress', 'live', '1stinnings', '2ndinnings']);
+
+function isLiveStatus(status: unknown): boolean {
+  return LIVE_STATUSES.has(String(status || '').toLowerCase().replace(/[\s_-]+/g, ''));
+}
+
+async function verifyMatchIsLive(matchId: string): Promise<boolean> {
+  if (matchId.startsWith('cric-')) {
+    const match = await cricapiService.getMatchDetail(matchId.slice(5));
+    return Boolean(match && isLiveStatus(match.status));
+  }
+  if (matchId.startsWith('ent-')) {
+    const match = await entitySportService.getMatchDetail(matchId.slice(4));
+    return Boolean(match && isLiveStatus(match.status));
+  }
+  const response = await sportmonksService.getFixture(matchId);
+  return Boolean(response?.data && isLiveStatus(response.data.status));
+}
 
 export async function POST(req: Request) {
   try {
@@ -27,6 +49,10 @@ export async function POST(req: Request) {
       parsedAmount > maxAmount
     ) {
       return NextResponse.json({ error: 'Invalid bet details' }, { status: 400 });
+    }
+
+    if (!(await verifyMatchIsLive(matchId))) {
+      return NextResponse.json({ error: 'Betting is only allowed while the match is live.' }, { status: 409 });
     }
 
     const result = await adminDb.runTransaction(async (transaction) => {

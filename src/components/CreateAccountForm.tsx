@@ -39,8 +39,8 @@ export default function CreateAccountForm() {
       setMessage({ text: data.message, type: 'success' });
       setUsername('');
       setInitialBalance('0');
-    } catch (err: any) {
-      setMessage({ text: err.message, type: 'error' });
+    } catch (err: unknown) {
+      setMessage({ text: err instanceof Error ? err.message : 'Unable to create account', type: 'error' });
     } finally {
       setLoading(false);
     }

@@ -47,7 +47,7 @@ export async function GET(
 
       throw detailError;
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load match' }, { status: 500 });
   }
 }

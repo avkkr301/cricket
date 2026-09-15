@@ -28,6 +28,7 @@ type EntityMatch = {
   winning_team_id?: number;
   result?: string;
   venue?: { name?: string };
+  balls?: unknown[];
 };
 
 export type EntitySportMatch = {
@@ -41,6 +42,7 @@ export type EntitySportMatch = {
   score?: string;
   winnerTeam?: string;
   matchType?: string;
+  balls?: unknown[];
 };
 
 function mapStatus(raw: EntityMatch): string {
@@ -76,6 +78,7 @@ function normalise(raw: EntityMatch): EntitySportMatch {
     score: raw.score,
     winnerTeam: winningTeam,
     matchType: raw.competition?.abbreviation?.toLowerCase(),
+    balls: raw.balls,
   };
 }
 

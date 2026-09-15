@@ -44,8 +44,8 @@ export default function ForcePasswordReset() {
         mustChangePassword: false
       });
       
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to update password');
     } finally {
       setLoading(false);
     }

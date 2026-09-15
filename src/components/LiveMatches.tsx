@@ -19,7 +19,6 @@ type Match = {
 
 // Statuses Sportmonks uses for ended matches — filter them out
 const ENDED_STATUSES = ['Finished', 'Aban.', 'Cancl.', 'Postp.', 'Interrupted'];
-const LIVE_STATUSES  = ['Inprogress', '1st Innings', '2nd Innings', 'Break', 'Lunch', 'Tea', 'Dinner', 'Drinks'];
 
 export default function LiveMatches() {
   const [activeTab, setActiveTab] = useState<'TODAY' | 'LIVE'>('TODAY');

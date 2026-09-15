@@ -10,6 +10,8 @@ const sportmonksClient = axios.create({
   },
 });
 
+export type SportmonksBall = Record<string, unknown>;
+
 export const sportmonksService = {
   /**
    * Fetch live cricket matches (in-play)
@@ -18,12 +20,12 @@ export const sportmonksService = {
     try {
       const response = await sportmonksClient.get('/livescores', {
         params: {
-          include: 'localteam,visitorteam,runs,scoreboards',
+          include: 'localteam,visitorteam,runs,scoreboards,balls',
         }
       });
       return response.data;
-    } catch (error: any) {
-      console.error('Sportmonks getLiveMatches Error:', error.response?.data || error.message);
+    } catch (error: unknown) {
+      console.error('Sportmonks getLiveMatches Error:', axios.isAxiosError(error) ? error.response?.data : error instanceof Error ? error.message : error);
       throw new Error('Failed to fetch live matches');
     }
   },
@@ -50,8 +52,8 @@ export const sportmonksService = {
         },
       });
       return response.data;
-    } catch (error: any) {
-      console.error('Sportmonks getUpcomingMatches Error:', error.response?.data || error.message);
+    } catch (error: unknown) {
+      console.error('Sportmonks getUpcomingMatches Error:', axios.isAxiosError(error) ? error.response?.data : error instanceof Error ? error.message : error);
       throw new Error('Failed to fetch upcoming matches');
     }
   },
@@ -59,11 +61,11 @@ export const sportmonksService = {
   async getFixture(id: string) {
     try {
       const response = await sportmonksClient.get(`/fixtures/${id}`, {
-        params: { include: 'localteam,visitorteam,runs,scoreboards' },
+        params: { include: 'localteam,visitorteam,runs,scoreboards,balls' },
       });
       return response.data;
-    } catch (error: any) {
-      console.error('Sportmonks getFixture Error:', error.response?.data || error.message);
+    } catch (error: unknown) {
+      console.error('Sportmonks getFixture Error:', axios.isAxiosError(error) ? error.response?.data : error instanceof Error ? error.message : error);
       throw new Error('Failed to fetch match');
     }
   },
@@ -96,8 +98,8 @@ export const sportmonksService = {
       // Adjust the endpoint based on your specific Sportmonks plan (pre-match or in-play).
       const response = await sportmonksClient.get(`/odds/fixture/${matchId}`);
       return response.data;
-    } catch (error: any) {
-      console.error(`Sportmonks getMatchOdds Error for ${matchId}:`, error.response?.data || error.message);
+    } catch (error: unknown) {
+      console.error(`Sportmonks getMatchOdds Error for ${matchId}:`, axios.isAxiosError(error) ? error.response?.data : error instanceof Error ? error.message : error);
       throw new Error('Failed to fetch match odds');
     }
   }

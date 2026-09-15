@@ -7,8 +7,8 @@ export async function POST(req: Request) {
   try {
     const { email, password, username, secretKey } = await req.json();
 
-    // A simple hardcoded secret to prevent unauthorized access
-    if (secretKey !== 'super-secret-admin-setup-key-2026') {
+    const configuredSecret = process.env.ADMIN_SETUP_SECRET;
+    if (!configuredSecret || secretKey !== configuredSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -36,8 +36,8 @@ export async function POST(req: Request) {
         userId: userRecord.uid 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Admin Creation Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create admin account' }, { status: 500 });
   }
 }

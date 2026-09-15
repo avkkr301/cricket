@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
     const odds = oddsApiService.extractH2H(match);
     return NextResponse.json({ found: true, odds, raw: match });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load odds' }, { status: 500 });
   }
 }
